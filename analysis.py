@@ -49,8 +49,10 @@ def build_frequency_table(df):
 
     # Melt from wide to long so each population becomes its own row
     melted = df.melt(
-        id_vars=["sample_id", "total_count", "sample_type", "time_from_treatment_start",
-                 "project", "condition", "treatment", "response", "sex"],
+        id_vars=[
+            "sample_id", "total_count", "sample_type", "time_from_treatment_start",
+            "project", "condition", "treatment", "response", "sex",
+        ],
         value_vars=CELL_POPULATIONS,
         var_name="population",
         value_name="count",
@@ -136,10 +138,65 @@ def plot_boxplots(df, output_path="boxplot_part3.png"):
     print(f"Boxplot saved to {output_path}")
 
 
+def run_part4_queries(conn):
+    """
+    Part 4: Query the DB directly for the melanoma PBMC baseline miraclib subset.
+    Reports sample counts by project, responder/non-responder counts,
+    sex breakdown, and average B cell count for male responders at baseline.
+    """
+    base_query = """
+        SELECT
+            subj.subject_id,
+            subj.project,
+            subj.sex,
+            subj.response,
+            cc.b_cell
+        FROM samples s
+        JOIN subjects subj ON s.subject_id = subj.subject_id
+        JOIN cell_counts cc  ON s.sample_id = cc.sample_id
+        WHERE subj.condition                = 'melanoma'
+          AND s.sample_type                 = 'PBMC'
+          AND s.time_from_treatment_start   = 0
+          AND subj.treatment                = 'miraclib'
+    """
+
+    base_df = pd.read_sql_query(base_query, conn)
+
+    print("=== Part 4: Melanoma PBMC Baseline Miraclib Subset ===\n")
+
+    # Samples per project
+    print("-- Samples per project --")
+    print(base_df.groupby("project").size().reset_index(name="sample_count").to_string(index=False))
+
+    # Responders vs non-responders (unique subjects)
+    print("\n-- Subjects by response --")
+    print(
+        base_df.groupby("response")["subject_id"]
+        .nunique()
+        .reset_index(name="subject_count")
+        .to_string(index=False)
+    )
+
+    # Males vs females (unique subjects)
+    print("\n-- Subjects by sex --")
+    print(
+        base_df.groupby("sex")["subject_id"]
+        .nunique()
+        .reset_index(name="subject_count")
+        .to_string(index=False)
+    )
+
+    # Average B cell count for melanoma male responders at time=0
+    avg_b_cell = (
+        base_df[(base_df["sex"] == "M") & (base_df["response"] == "yes")]["b_cell"].mean()
+    )
+    print(f"\n-- Average B cell count (melanoma, male, responders, time=0) --")
+    print(f"{avg_b_cell:.2f}")
+
+
 def main():
     conn = get_connection()
     raw_df = load_raw_counts(conn)
-    conn.close()
 
     # Part 2 — frequency table
     frequency_table = build_frequency_table(raw_df)
@@ -160,6 +217,12 @@ def main():
     print(stats_df.to_string(index=False))
 
     plot_boxplots(filtered_df)
+
+    # Part 4 — subset analysis via SQL
+    print()
+    run_part4_queries(conn)
+
+    conn.close()
 
 
 if __name__ == "__main__":
