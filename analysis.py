@@ -1,5 +1,7 @@
 import sqlite3
 import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats import mannwhitneyu
 
 DB_PATH = "cell_counts.db"
 
@@ -42,11 +44,13 @@ def build_frequency_table(df):
     For each sample, compute total cell count and the relative frequency
     of each population as a percentage. Returns a long-format summary table.
     """
+    df = df.copy()
     df["total_count"] = df[CELL_POPULATIONS].sum(axis=1)
 
     # Melt from wide to long so each population becomes its own row
     melted = df.melt(
-        id_vars=["sample_id", "total_count"],
+        id_vars=["sample_id", "total_count", "sample_type", "time_from_treatment_start",
+                 "project", "condition", "treatment", "response", "sex"],
         value_vars=CELL_POPULATIONS,
         var_name="population",
         value_name="count",
@@ -57,7 +61,79 @@ def build_frequency_table(df):
     # Rename sample_id to sample to match the required output column name
     melted = melted.rename(columns={"sample_id": "sample"})
 
-    return melted[["sample", "total_count", "population", "count", "percentage"]]
+    return melted
+
+
+def filter_melanoma_miraclib_pbmc(df):
+    """Filter to melanoma patients on miraclib with PBMC samples only."""
+    mask = (
+        (df["condition"] == "melanoma") &
+        (df["treatment"] == "miraclib") &
+        (df["sample_type"] == "PBMC")
+    )
+    return df[mask].copy()
+
+
+def run_statistical_analysis(df):
+    """
+    For each cell population, run a Mann-Whitney U test comparing
+    percentage frequencies between responders and non-responders.
+    Returns a summary DataFrame with U statistic and p-value per population.
+    """
+    results = []
+
+    for population in CELL_POPULATIONS:
+        pop_df = df[df["population"] == population]
+        responders = pop_df[pop_df["response"] == "yes"]["percentage"]
+        non_responders = pop_df[pop_df["response"] == "no"]["percentage"]
+
+        stat, p_value = mannwhitneyu(responders, non_responders, alternative="two-sided")
+
+        results.append({
+            "population": population,
+            "responder_median": round(responders.median(), 4),
+            "non_responder_median": round(non_responders.median(), 4),
+            "u_statistic": round(stat, 4),
+            "p_value": round(p_value, 4),
+            "significant": p_value < 0.05,
+        })
+
+    return pd.DataFrame(results)
+
+
+def plot_boxplots(df, output_path="boxplot_part3.png"):
+    """
+    Boxplot of percentage frequencies per cell population,
+    comparing responders vs non-responders.
+    """
+    fig, axes = plt.subplots(1, len(CELL_POPULATIONS), figsize=(18, 6), sharey=False)
+
+    for ax, population in zip(axes, CELL_POPULATIONS):
+        pop_df = df[df["population"] == population]
+
+        responders = pop_df[pop_df["response"] == "yes"]["percentage"]
+        non_responders = pop_df[pop_df["response"] == "no"]["percentage"]
+
+        ax.boxplot(
+            [responders, non_responders],
+            labels=["Responders", "Non-responders"],
+            patch_artist=True,
+            boxprops=dict(facecolor="steelblue", alpha=0.7),
+        )
+        ax.set_title(population, fontsize=11)
+        ax.set_ylabel("Relative frequency (%)" if population == CELL_POPULATIONS[0] else "")
+        ax.tick_params(axis="x", labelsize=9)
+
+    fig.suptitle(
+        "Cell population frequencies: Responders vs Non-responders\n"
+        "(Melanoma, miraclib, PBMC only)",
+        fontsize=13,
+        y=1.02,
+    )
+    plt.tight_layout()
+    plt.savefig(output_path, bbox_inches="tight", dpi=150)
+    plt.close()
+    print(f"Boxplot saved to {output_path}")
 
 
 def main():
@@ -65,10 +141,25 @@ def main():
     raw_df = load_raw_counts(conn)
     conn.close()
 
+    # Part 2 — frequency table
     frequency_table = build_frequency_table(raw_df)
+    summary = frequency_table[["sample", "total_count", "population", "count", "percentage"]]
+    print("=== Part 2: Frequency Table (first 10 rows) ===")
+    print(summary.head(10).to_string(index=False))
+    print(f"Total rows: {len(summary)}\n")
 
-    print(frequency_table.head(10).to_string(index=False))
-    print(f"\nTotal rows: {len(frequency_table)}")
+    # Part 3 — filter, stats, plot
+    filtered_df = filter_melanoma_miraclib_pbmc(frequency_table)
+
+    print("=== Part 3: Statistical Analysis ===")
+    print(f"Samples in analysis: {filtered_df['sample'].nunique()}")
+    print(f"Responders: {filtered_df[filtered_df['response'] == 'yes']['sample'].nunique()}")
+    print(f"Non-responders: {filtered_df[filtered_df['response'] == 'no']['sample'].nunique()}\n")
+
+    stats_df = run_statistical_analysis(filtered_df)
+    print(stats_df.to_string(index=False))
+
+    plot_boxplots(filtered_df)
 
 
 if __name__ == "__main__":
