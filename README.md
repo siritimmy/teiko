@@ -95,6 +95,4 @@ Subject-level attributes (`condition`, `age`, `sex`, `treatment`, `response`) ar
 
 ## Dashboard
 
-> _Link will be added once the dashboard is deployed._
-
-<!-- TODO: Add dashboard URL -->
+https://siritimmy-teiko-dashboard-jseiri.streamlit.app/
