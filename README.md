@@ -6,15 +6,17 @@ Clinical trial dashboard and analysis pipeline for understanding how a drug cand
 
 ## Getting Started
 
-> _Instructions will be added once the pipeline and dashboard are finalized._
-
-<!-- TODO: Fill in setup and run instructions for GitHub Codespaces -->
+Clone the repository and run the following three commands in order:
 
 ```bash
-make setup      # Install dependencies
-make pipeline   # Run full data pipeline (DB init, load, analysis, plots)
-make dashboard  # Start the interactive dashboard
+make setup      # Install all dependencies from requirements.txt
+make pipeline   # Initialize the DB, load data, and generate all outputs
+make dashboard  # Start the interactive Streamlit dashboard
 ```
+
+All three commands are designed to run without modification in GitHub Codespaces. The pipeline produces `cell_counts.db` and `boxplot_part3.png` in the repository root. The dashboard reads from the same database and runs on `http://localhost:8501`.
+
+> **Note:** `cell-count.csv` must be present in the repository root before running `make pipeline`.
 
 ---
 
@@ -58,10 +60,10 @@ One row per sample. Stores the raw cell count for each of the five immune popula
 | `monocyte` | INTEGER | Monocyte count |
 
 ### Rationale
- 
+
 **Why normalize into three tables?**
 Subject-level attributes (`condition`, `age`, `sex`, `treatment`, `response`) are identical across every sample from the same subject. Storing them once in `subjects` eliminates redundancy, reduces storage, and ensures that updating a subject's metadata only requires touching one row.
- 
+
 **How does this scale?**
 - *Hundreds of projects:* `project` can be promoted to its own table with a foreign key on `subjects` if projects gain their own metadata, with no changes needed elsewhere.
 - *Thousands of samples:* Indexing `samples.subject_id` and `cell_counts.sample_id` keeps joins fast. The schema is identical if migrating from SQLite to PostgreSQL.
@@ -72,9 +74,22 @@ Subject-level attributes (`condition`, `age`, `sex`, `treatment`, `response`) ar
 
 ## Code Structure
 
-> _Will be filled in once all scripts are written._
+```
+.
+├── cell-count.csv        # Raw input data
+├── load_data.py          # Initializes the SQLite DB and loads the CSV
+├── analysis.py           # Parts 2–4: frequency table, statistics, and subset queries
+├── dashboard.py          # Streamlit interactive dashboard
+├── requirements.txt      # Python dependencies
+├── Makefile              # setup / pipeline / dashboard targets
+└── README.md
+```
 
-<!-- TODO: Describe each file and the reasoning behind the structure -->
+**`load_data.py`** — Schema creation and CSV ingestion. Wipes and reloads on every run for a reproducible pipeline.
+ 
+**`analysis.py`** — Parts 2–4 as pure functions: frequency table, Mann-Whitney statistics, boxplot, and SQL-driven subset queries.
+ 
+**`dashboard.py`** — Streamlit app with sidebar navigation, one page per part. Data is cached per session; Part 3 boxplots use Plotly for interactivity. Requires `make pipeline` to run first.
 
 ---
 

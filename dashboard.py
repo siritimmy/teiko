@@ -216,7 +216,7 @@ def page_part4():
 
 def main():
     st.set_page_config(page_title="Immune Cell Analysis", layout="wide")
-    st.title("Immune Cell Population Analysis")
+    st.title("teiko")
     st.markdown("Clinical trial dashboard — Loblaw Bio")
 
     raw_df = load_raw_counts()
@@ -224,14 +224,14 @@ def main():
 
     page = st.sidebar.radio(
         "Navigation",
-        ["Part 2 — Frequency Table", "Part 3 — Statistical Analysis", "Part 4 — Subset Analysis"],
+        ["Frequency Table (Part 2)", "Statistical Analysis (Part 3)", "Subset Analysis (Part 4)"],
     )
 
-    if page == "Part 2 — Frequency Table":
+    if page == "Frequency Table (Part 2)":
         page_part2(freq_table)
-    elif page == "Part 3 — Statistical Analysis":
+    elif page == "Statistical Analysis (Part 3)":
         page_part3(freq_table)
-    elif page == "Part 4 — Subset Analysis":
+    elif page == "Subset Analysis (Part 4)":
         page_part4()
 
 
