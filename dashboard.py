@@ -3,8 +3,14 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from scipy.stats import mannwhitneyu
+import os
+import subprocess
 
 DB_PATH = "cell_counts.db"
+
+# Build the DB if it doesn't exist (e.g. on Streamlit Cloud cold start)
+if not os.path.exists(DB_PATH):
+    subprocess.run(["python", "load_data.py"], check=True)
 
 CELL_POPULATIONS = ["b_cell", "cd8_t_cell", "cd4_t_cell", "nk_cell", "monocyte"]
 
